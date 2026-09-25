@@ -9,7 +9,7 @@ on:
       - "terraform/**"
       - "monitoring/**"
       - ".github/workflows/00-infrastructure.yml"
-  
+
   # Manual trigger for the workflow
   workflow_dispatch:
 
@@ -113,6 +113,12 @@ jobs:
     name: Build and Push ${{ matrix.image }}
     runs-on: ubuntu-latest
 
+    # Permissions needed to upload Docker Scout results to the Security tab
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
     # All backend tests must pass before this job starts
     needs:
       - backend-test
@@ -164,6 +170,55 @@ jobs:
             -t ${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.image }}:${{ github.sha }} \
             ./${{ matrix.service }}
 
+      # =========================================================
+      # Docker Scout: scan the image BEFORE it is pushed to ACR
+      # =========================================================
+      - name: Log in to Docker Hub (required by Docker Scout)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker Scout - vulnerability report
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: local://${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.image }}:${{ github.sha }}
+          only-severities: critical,high
+          summary: true
+          sarif-file: scout-${{ matrix.image }}.sarif
+
+      - name: Docker Scout - security gate (block fixable critical)
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: local://${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.image }}:${{ github.sha }}
+          only-severities: critical
+          only-fixed: true
+          exit-code: true
+
+      - name: Docker Scout - recommendations
+        uses: docker/scout-action@v1
+        with:
+          command: recommendations
+          image: local://${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.image }}:${{ github.sha }}
+
+      - name: Upload Scout results (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-${{ matrix.image }}
+          path: scout-${{ matrix.image }}.sarif
+
+      - name: Upload Scout results (GitHub Security tab)
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scout-${{ matrix.image }}.sarif
+          category: scout-${{ matrix.image }}
+
+      # Only reached if the security gate passed
       - name: Push Docker image with commit SHA
         run: |
           docker push \

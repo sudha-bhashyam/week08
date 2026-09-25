@@ -22,7 +22,7 @@ ENV VITE_ENROLLMENT_SERVICE_URL=${VITE_ENROLLMENT_SERVICE_URL}
 
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Security fix: upgrade Alpine OS packages to patched versions (Docker Scout found 7 fixable Criticals)
 RUN apk upgrade --no-cache

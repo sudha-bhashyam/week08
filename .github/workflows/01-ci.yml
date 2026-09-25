@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "terraform/**"
+      - "monitoring/**"
+      - ".github/workflows/00-infrastructure.yml"
   
   # Manual trigger for the workflow
   workflow_dispatch:

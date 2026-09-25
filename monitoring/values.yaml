@@ -1,0 +1,19 @@
+# Helm values for kube-prometheus-stack (installed by 00 - Infrastructure)
+alertmanager:
+  enabled: false            # not needed for this task; saves cluster resources
+
+grafana:
+  service:
+    type: ClusterIP         # accessed with kubectl port-forward, not exposed publicly
+  # adminPassword is passed from the GRAFANA_ADMIN_PASSWORD GitHub secret
+
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    # Pick up ServiceMonitors/PodMonitors from any namespace (e.g. staging, production)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi

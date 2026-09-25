@@ -119,6 +119,11 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 
+# Prometheus metrics: request count, latency and status codes at /metrics
+from prometheus_fastapi_instrumentator import Instrumentator
+
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
+
 
 @app.get(
     "/",

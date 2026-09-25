@@ -61,3 +61,29 @@ jobs:
             --retry 10 \
             --retry-delay 5 \
             http://${{ env.FRONTEND_IP }}
+
+      - name: Validate monitoring (Prometheus is scraping staging)
+        run: |
+          kubectl -n monitoring port-forward svc/prometheus-operated 9090:9090 >/tmp/pf.log 2>&1 &
+          PF=$!
+          sleep 8
+          q() { curl -s --get http://localhost:9090/api/v1/query --data-urlencode "query=$1" | jq -r '.data.result[0].value[1] // "0"'; }
+          for i in $(seq 1 12); do
+            READY=$(q 'sum(kube_pod_status_ready{namespace="staging",condition="true"})')
+            UP=$(q 'sum(up{namespace="staging",service="user-service"})')
+            echo "Attempt $i: ready pods=$READY, user-service up=$UP"
+            [ "${READY%.*}" -ge 1 ] && [ "${UP%.*}" -ge 1 ] && break
+            sleep 10
+          done
+          kill $PF || true
+          {
+            echo "### Monitoring validation (staging)"
+            echo "| Check | Value |"
+            echo "|---|---|"
+            echo "| Ready pods in staging | $READY |"
+            echo "| user-service scrape targets UP | $UP |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${READY%.*}" -lt 1 ] || [ "${UP%.*}" -lt 1 ]; then
+            echo "::error::Prometheus is not scraping staging correctly"
+            exit 1
+          fi

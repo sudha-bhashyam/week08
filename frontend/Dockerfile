@@ -24,6 +24,9 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
+# Security fix: upgrade Alpine OS packages to patched versions (Docker Scout found 7 fixable Criticals)
+RUN apk upgrade --no-cache
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=build /app/dist /usr/share/nginx/html
